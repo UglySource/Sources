@@ -9030,7 +9030,7 @@ do
 		if type(_G.MM2SkinData) == "table" then
 			return _G.MM2SkinData
 		end
-		local meshid = func1("https://raw.githubusercontent.com/meeqscripts/mm2/refs/heads/main/meshid")
+		local meshid = func1("https://raw.githubusercontent.com/UglySource/MeshId/refs/heads/main/MM2")
 		if not meshid then
 			return nil, "Skin list could not be downloaded."
 		end
