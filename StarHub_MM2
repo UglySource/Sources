@@ -8069,28 +8069,33 @@ _G.AutoCaseOpened = 0
 _G.AutoCaseLastReward = nil
 _G.AutoCaseStatus = "idle"
 _G.FarmWebhookCaseReport = true
-_G.AutoCaseBoxList = { "MysteryBox1", "MysteryBox2", "KnifeBox3", "KnifeBox4", "GunBox3" }
+_G.AutoCaseBoxList = { "MysteryBox1", "MysteryBox2", "KnifeBox3", "KnifeBox4", "GunBox3", "Halloween2026Box" }
 
 do
-	local function func130()
+	local function caseCurrency(box)
+		return box == "Halloween2026Box" and "Candies2026" or "Coins"
+	end
+
+	local function func130(currency)
 		local value111 = nil
 
 		pcall(function()
 			local ProfileData = require(ReplicatedStorage.Modules.ProfileData)
-			value111 = tonumber(ProfileData.Materials and ProfileData.Materials.Owned and ProfileData.Materials.Owned.Coins)
+			value111 = tonumber(ProfileData.Materials and ProfileData.Materials.Owned and ProfileData.Materials.Owned[currency])
 		end)
 
 		return value111
 	end
 
 	local function func131(param97)
-		local n2 = 1000
+		local currency = caseCurrency(param97)
+		local n2 = currency == "Coins" and 1000 or nil
 
 		pcall(function()
 			local NewShop = require(ReplicatedStorage.Database.Sync.NewShop)
-			local coins = NewShop[param97] and NewShop[param97].Price and NewShop[param97].Price.Coins
+			local coins = NewShop[param97] and NewShop[param97].Price and NewShop[param97].Price[currency]
 
-			if tonumber(coins) then
+			if tonumber(coins) and tonumber(coins) >= 0 then
 				n2 = tonumber(coins)
 			end
 		end)
@@ -8106,7 +8111,7 @@ do
 		end
 
 		local ok, result = pcall(function()
-			return ReplicatedStorage.Remotes.Shop.OpenCrate:InvokeServer(autoCaseBox, "MysteryBox", "Coins")
+			return ReplicatedStorage.Remotes.Shop.OpenCrate:InvokeServer(autoCaseBox, "MysteryBox", caseCurrency(autoCaseBox))
 		end)
 
 		if not ok then
@@ -8143,18 +8148,21 @@ do
 			task.wait(3)
 
 			if _G.AutoCaseEnabled and (not _G.AutoCaseOnlyWhileFarming or _G.AutoFarmEnabled) then
-				local result11 = func130()
+				local currency = caseCurrency(_G.AutoCaseBox)
+				local result11 = func130(currency)
 				local n2 = math.max(0, tonumber(_G.AutoCaseReserve) or 0)
 				local autoCaseBox2 = func131(_G.AutoCaseBox)
 
-				if result11 and result11 - autoCaseBox2 >= n2 then
+				if not autoCaseBox2 then
+					_G.AutoCaseStatus = "case price unavailable: " .. tostring(_G.AutoCaseBox)
+				elseif result11 and result11 - autoCaseBox2 >= n2 then
 					_G.AutoCaseStatus = "opening " .. tostring(_G.AutoCaseBox) .. "..."
 					autoCaseOpenOnce()
 					task.wait(2)
 				elseif result11 then
-					_G.AutoCaseStatus = string.format("waiting: %d / %d coins", result11, autoCaseBox2 + n2)
+					_G.AutoCaseStatus = string.format("waiting: %d / %d %s", result11, autoCaseBox2 + n2, currency)
 				else
-					_G.AutoCaseStatus = "coin balance unavailable"
+					_G.AutoCaseStatus = currency .. " balance unavailable"
 				end
 			end
 		end
@@ -15061,7 +15069,7 @@ tbl122.Toggle(obj61, {
 
 obj61:Dropdown({
 	Title = "Case",
-	Values = _G.AutoCaseBoxList or { "MysteryBox1", "MysteryBox2", "KnifeBox3", "KnifeBox4", "GunBox3" },
+	Values = _G.AutoCaseBoxList or { "MysteryBox1", "MysteryBox2", "KnifeBox3", "KnifeBox4", "GunBox3", "Halloween2026Box" },
 	Flag = "AutoCaseBox",
 	Value = "MysteryBox1",
 	AllowNone = false,
@@ -15072,7 +15080,7 @@ obj61:Dropdown({
 })
 
 tbl122.Slider(obj61, {
-	Title = "Keep Coin Reserve",
+	Title = "Keep Currency Reserve",
 	Flag = "AutoCaseReserve",
 	Min = 0,
 	Max = 100000,
