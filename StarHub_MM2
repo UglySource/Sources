@@ -61,6 +61,7 @@ func1 = function(url)
 end
 
 pcall(function()
+	if _G.__RestoreSkinBeams then _G.__RestoreSkinBeams() end
 	if _G.__InRoundGuardConn then
 		_G.__InRoundGuardConn:Disconnect()
 	end
@@ -9401,10 +9402,50 @@ do
 		return { Rot = rot, Pos = pos, Len = len }
 	end
 
+	local beamGuards = {}
+	local function restoreSkinBeams(root)
+		local guard = beamGuards[root]
+		if not guard then return end
+		beamGuards[root] = nil
+		for _, connection in ipairs(guard.connections) do connection:Disconnect() end
+		for beam, enabled in pairs(guard.originals) do
+			pcall(function() beam.Enabled = enabled end)
+		end
+	end
+	local function hasSkinBeam(node)
+		if node.Class == "Beam" then return true end
+		for _, child in ipairs(node.Children or {}) do
+			if hasSkinBeam(child) then return true end
+		end
+		return false
+	end
+	local function guardSkinBeams(root, model)
+		if not hasSkinBeam(model) then return end
+		local guard = { originals = {}, connections = {} }
+		beamGuards[root] = guard
+		local function suppress(beam)
+			if not beam:IsA("Beam") or beam:GetAttribute("MM2SkinExtra") or guard.originals[beam] ~= nil then return end
+			guard.originals[beam] = beam.Enabled
+			beam.Enabled = false
+			table.insert(guard.connections, beam:GetPropertyChangedSignal("Enabled"):Connect(function()
+				if beam.Enabled then beam.Enabled = false end
+			end))
+		end
+		for _, descendant in ipairs(root:GetDescendants()) do suppress(descendant) end
+		table.insert(guard.connections, root.DescendantAdded:Connect(suppress))
+		table.insert(guard.connections, root.Destroying:Connect(function() restoreSkinBeams(root) end))
+	end
+	_G.__RestoreSkinBeams = function()
+		local roots = {}
+		for root in pairs(beamGuards) do table.insert(roots, root) end
+		for _, root in ipairs(roots) do restoreSkinBeams(root) end
+	end
+
 	local function func156(parent, param114, flag182, flag183, flag184)
 		if not parent or not parent:IsA("BasePart") or type(param114) ~= "table" then
 			return false
 		end
+		restoreSkinBeams(parent)
 		_G.__MM2ClearChromaArtifacts(parent)
 
 		for _, child in ipairs(parent:GetChildren()) do
@@ -9612,6 +9653,8 @@ do
 				_G.MM2ChromaGroups[part] = nil
 			end
 		end
+
+		guardSkinBeams(parent, param114)
 
 		return true
 	end
@@ -10136,6 +10179,7 @@ do
 		end,
 		Clear = function(param126)
 			_G.MM2SkinChoice[param126] = nil
+			_G.__RestoreSkinBeams()
 		end,
 		TuneHeld = function(param127, flag193)
 			local tbl85 = flag193 or {}
@@ -16868,6 +16912,7 @@ do
 		_G.__HomeLoopId = nil
 		_G.__FarmStatsLoopId = nil
 
+		if _G.__RestoreSkinBeams then _G.__RestoreSkinBeams() end
 		if _G.CoinESPConn then
 			for _, item82 in ipairs(_G.CoinESPConn) do
 				pcall(function()
