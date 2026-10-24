@@ -503,15 +503,19 @@ do
 	end
 
 	_G.FarmCoinsCollected = 0
+	_G.FarmCandiesCollected = 0
 	_G.FarmCoinTimes = {}
 
-	_G.__FarmCountPickup = function(num2)
+	_G.__FarmCountPickup = function(num2, isHalloweenCandy)
 		local character = localPlayer.Character
 		character = character and character:FindFirstChild("HumanoidRootPart")
 		if not character or (character.Position - num2).Magnitude > 16 then
 			return
 		end
 		_G.FarmCoinsCollected = _G.FarmCoinsCollected + 1
+		if isHalloweenCandy then
+			_G.FarmCandiesCollected = (_G.FarmCandiesCollected or 0) + 1
+		end
 		local farmCoinTimes = _G.FarmCoinTimes
 		table.insert(farmCoinTimes, os.clock())
 
@@ -547,6 +551,7 @@ do
 
 	_G.FarmResetRates = function()
 		_G.FarmCoinsCollected = 0
+		_G.FarmCandiesCollected = 0
 		_G.FarmCoinTimes = {}
 	end
 
@@ -554,7 +559,7 @@ do
 		if tbl1[part2] ~= list1 then
 			return
 		end
-		pcall(_G.__FarmCountPickup, part2.Position)
+		pcall(_G.__FarmCountPickup, part2.Position, list1.weight == 2.5)
 		value4(list1)
 		tbl1[part2] = nil
 
@@ -7896,12 +7901,14 @@ do
 		local n3 = nil
 		local n4 = nil
 		local value109 = nil
+		local halloweenCandies = nil
 
 		pcall(function()
 			local ProfileData = require(ReplicatedStorage.Modules.ProfileData)
 			local owned = ProfileData.Materials and ProfileData.Materials.Owned or {}
 			n3 = tonumber(owned.Coins) or 0
 			n4 = tonumber(owned.Gems) or 0
+			halloweenCandies = tonumber(owned.Candies2026) or 0
 			local LevelModule = require(ReplicatedStorage.Modules.LevelModule)
 
 			if LevelModule and LevelModule.GetLevel then
@@ -7909,7 +7916,7 @@ do
 			end
 		end)
 
-		return n3, n4, value109
+		return n3, n4, value109, halloweenCandies
 	end
 
 	_G.__FarmAccountCoins = function()
@@ -7919,7 +7926,7 @@ do
 	_G.__FarmAccountStats = farmAccountStats
 
 	local function func129(param92, param93, flag145)
-		local num43, flag146, flag147 = farmAccountStats()
+		local num43, flag146, flag147, halloweenCandies = farmAccountStats()
 
 		if value106 == nil then
 			value106 = num43
@@ -7958,6 +7965,8 @@ do
 		tbl55[6] = tbl61
 		tbl55[7] = tbl62
 		tbl55[8] = tbl63
+		tbl55[9] = { name = "🍬Halloween candies farmed", value = "`" .. func127(_G.FarmCandiesCollected or 0) .. "`", inline = true }
+		tbl55[10] = { name = "🍭Halloween candies total", value = halloweenCandies and "**" .. func127(halloweenCandies) .. "**" or "`?`", inline = true }
 
 		local tbl64 = {
 			author = { name = "Star Hub • MM2" },
