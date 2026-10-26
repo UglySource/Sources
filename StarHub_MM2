@@ -1,3 +1,10 @@
+-- Shared by executor AutoExecute and the queued rejoin loader.
+do
+	local env = getgenv and getgenv() or _G
+	if env.__StarHubExecutionActive then return end
+	env.__StarHubExecutionActive = true
+end
+
 local Players
 Players = game:GetService("Players")
 local RunService
@@ -72,6 +79,9 @@ pcall(function()
 
 	if _G.AutoFarmSetEnabled then
 		_G.AutoFarmSetEnabled(false)
+	end
+	if _G.AutoRejoinSetEnabled then
+		_G.AutoRejoinSetEnabled(false)
 	end
 
 	if _G.AntiFlingSetEnabled then
@@ -1924,6 +1934,86 @@ print("Core systems (coin registry + role esp) ready")
 _G.AutoFarmEnabled = false
 _G.AutoFarmSpeed = 30
 _G.CollectCoinsUnderground = true
+
+do
+	local TeleportService = game:GetService("TeleportService")
+	local CoreGui = game:GetService("CoreGui")
+	local rejoinToken = nil
+	_G.AutoRejoinEnabled = false
+	local queueTeleport = queue_on_teleport or queueonteleport or (syn and syn.queue_on_teleport)
+	local autoExecuteQueued = false
+	local function queueAutoExecute()
+		if autoExecuteQueued then return end
+		if type(queueTeleport) ~= "function" then
+			warn("Auto Execute unavailable: executor has no queue_on_teleport")
+			return
+		end
+		local code = [[
+			if not game:IsLoaded() then game.Loaded:Wait() end
+			local env = getgenv and getgenv() or _G
+			if env.__StarKickAutoExecuteStarted then return end
+			env.__StarKickAutoExecuteStarted = true
+			local source = "https://raw.githubusercontent.com/UglySource/Sources/refs/heads/main/StarHub_MM2"
+			local ok, err = pcall(function()
+				if not _G.WindUIWindow then
+					loadstring(game:HttpGet(source))()
+				end
+				local deadline = os.clock() + 120
+				while not _G.ConfigReady and os.clock() < deadline do task.wait(0.25) end
+				if not _G.ConfigReady then error("StarHub did not finish loading") end
+				if _G.AutoRejoinSetEnabled then _G.AutoRejoinSetEnabled(true) end
+				if %s and _G.AutoFarmSetEnabled then _G.AutoFarmSetEnabled(true) end
+			end)
+			if not ok then
+				env.__StarKickAutoExecuteStarted = nil
+				warn("Auto Execute failed: " .. tostring(err))
+			end
+		]]
+		local ok, err = pcall(queueTeleport, string.format(code, tostring(_G.AutoFarmEnabled == true)))
+		autoExecuteQueued = ok
+		if not ok then warn("Auto Execute queue failed: " .. tostring(err)) end
+	end
+
+	_G.AutoRejoinSetEnabled = function(enabled)
+		_G.AutoRejoinEnabled = enabled == true
+		rejoinToken = nil
+		if not _G.AutoRejoinEnabled then
+			return
+		end
+
+		local token = {}
+		rejoinToken = token
+		task.spawn(function()
+			local attempts = 0
+			local nextAttempt = 0
+			while rejoinToken == token do
+				local ok, disconnected = pcall(function()
+					local promptGui = CoreGui:FindFirstChild("RobloxPromptGui")
+					local overlay = promptGui and promptGui:FindFirstChild("promptOverlay")
+					local prompt = overlay and overlay:FindFirstChild("ErrorPrompt")
+					return prompt and prompt:IsA("GuiObject") and prompt.Visible
+				end)
+				if ok and disconnected and os.clock() >= nextAttempt then
+					attempts = attempts + 1
+					nextAttempt = os.clock() + 10
+					queueAutoExecute()
+					local joined, err = pcall(function()
+						if attempts <= 2 and game.JobId ~= "" then
+							TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, localPlayer)
+						else
+							TeleportService:Teleport(game.PlaceId, localPlayer)
+						end
+					end)
+					if not joined then
+						warn("Auto Rejoin failed: " .. tostring(err))
+					end
+				end
+				task.wait(1)
+			end
+		end)
+	end
+end
+
 local connection
 connection = nil
 local flag21
@@ -7965,8 +8055,8 @@ do
 		tbl55[6] = tbl61
 		tbl55[7] = tbl62
 		tbl55[8] = tbl63
-		tbl55[9] = { name = "🍬Halloween candies farmed", value = "`" .. func127(_G.FarmCandiesCollected or 0) .. "`", inline = true }
-		tbl55[10] = { name = "🍭Halloween candies total", value = halloweenCandies and "**" .. func127(halloweenCandies) .. "**" or "`?`", inline = true }
+		tbl55[9] = { name = "Halloween candies farmed", value = "`" .. func127(_G.FarmCandiesCollected or 0) .. "`", inline = true }
+		tbl55[10] = { name = "Halloween candies total", value = halloweenCandies and "**" .. func127(halloweenCandies) .. "**" or "`?`", inline = true }
 
 		local tbl64 = {
 			author = { name = "Star Hub • MM2" },
@@ -14969,6 +15059,13 @@ do
 	end)
 
 	tbl122.Toggle(value264, {
+		Title = "Auto Rejoin on Kick",
+		Flag = "AutoRejoinOnKick",
+		Set = "AutoRejoinSetEnabled",
+		Notify = "rotate-ccw",
+	})
+
+	tbl122.Toggle(value264, {
 		Title = "Farm Underground",
 		Flag = "CollectCoinsUnderground",
 		Value = true,
@@ -16871,6 +16968,11 @@ tbl121.Home:Select()
 
 do
 	local function callback7()
+		local env = getgenv and getgenv() or _G
+		env.__StarHubExecutionActive = nil
+		if _G.AutoRejoinSetEnabled then
+			_G.AutoRejoinSetEnabled(false)
+		end
 		if _G.StopRoleFling then
 			_G.StopRoleFling()
 		end
